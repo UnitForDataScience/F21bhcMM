@@ -1,1 +1,36 @@
-
+<!DOCTYPE html>
+<html lang="en">
+<style>
+    .column {
+        float: left;
+        width: 33.33%;
+        padding: 5px;
+    }
+    .row::after {
+        content: "";
+        clear: both;
+        display: table;
+    }
+</style>
+<body>
+    <h1>Enter the name of a Twitter user, and what modulo to use.</h1>
+    <form action="." method="POST">
+        <input type="text" name="user">
+        <input type="text" name="modulo">
+        <input type="submit" name="index" value="Begin">
+    </form>
+    <div class="row">
+        <div class="column">
+            <img src="{{ image }}" style="width: 100%">
+        </div>
+        <div class="column">
+            <img src="{{ arrow }}" style="width: 30%; height: 20%;">
+        </div>
+        <div class="column">
+            <img src="{{ heatmap }}" style="width: 30%;height: 20%;">
+        </div>
+    </div>
+    
+    <p><h3>{{ephem}}</h3></p>
+</body>
+</html>
