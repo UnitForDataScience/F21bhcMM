@@ -1,0 +1,91 @@
+#### Science sentiment function only, returns score for single string ###
+
+import pandas as pd
+import numpy as np
+from nltk.corpus import stopwords
+from nltk import pos_tag
+from nltk.tokenize import word_tokenize
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn import model_selection, svm
+from nltk.stem import WordNetLemmatizer
+from collections import defaultdict
+from nltk.corpus import wordnet as wn
+from sklearn.metrics import accuracy_score, recall_score, precision_score
+from sklearn.calibration import CalibratedClassifierCV
+
+#Loading Dataframes
+pro_sci = pd.read_csv('pro_science.csv',sep=',')
+anti_sci = pd.read_csv('anti_science.csv')
+
+#Renaming and Cleaning Dataframes
+pro_sci = pro_sci.drop(columns='Unnamed: 0')
+pro_sci.rename(columns= {'0':'Tweet'}, inplace=True)
+#adds label 0 for pro-science Tweets
+pro_sci['label'] = 1
+
+anti_sci = anti_sci.drop(columns='Unnamed: 0')
+anti_sci.rename(columns= {'0':'Tweet'}, inplace=True)
+#adds label 0 for anti-science Tweets
+anti_sci['label'] = 0
+
+corpus = pro_sci.append(anti_sci, ignore_index=True)
+
+#Text processing in corpus dataframe
+#Lowercase
+corpus['Tweet'] = [entry.lower() for entry in corpus['Tweet']]
+#Tokenizing
+corpus['Tweet']= [word_tokenize(entry) for entry in corpus['Tweet']]
+#Tags for Word Lemmatization
+tag_map = defaultdict(lambda : wn.NOUN)
+tag_map['J'] = wn.ADJ
+tag_map['V'] = wn.VERB
+tag_map['R'] = wn.ADV
+
+for index,entry in enumerate(corpus['Tweet']):
+    final_words = []
+    # Initializing WordNetLemmatizer()
+    word_Lemmatized = WordNetLemmatizer()
+    # Provides tags for nouns, verbs, adjectives
+    for word, tag in pos_tag(entry):
+        # Check for stopwords
+        if word not in stopwords.words('english') and word.isalpha():
+            word_final = word_Lemmatized.lemmatize(word,tag_map[tag[0]])
+            final_words.append(word_final)
+    # Stores final processed words for each Tweet in column "text_final"
+    corpus.loc[index,'text_final'] = str(final_words)
+Train_X, Test_X, Train_Y, Test_Y = model_selection.train_test_split(corpus['text_final'],corpus['label'],test_size=0.05)
+Tfidf_vect = TfidfVectorizer(ngram_range=(1,3))
+Tfidf_vect.fit(corpus['text_final'])
+
+Train_X_Tfidf = Tfidf_vect.transform(Train_X)
+Test_X_Tfidf = Tfidf_vect.transform(Test_X)
+
+#Support Vector Machine
+
+svm = svm.SVC(C=1.0, kernel='linear', degree=3, gamma='auto', probability=True)
+clf = CalibratedClassifierCV(base_estimator=svm) 
+clf.fit(Train_X_Tfidf,Train_Y, np.random.seed(42))
+svm_pred = clf.predict(Test_X_Tfidf)
+
+### Unblock to return SVM accuracy, prevision, recall ###
+#print("SVM Accuracy Score -> ",accuracy_score(svm_pred, Test_Y))
+#print("SVM Recall Score -> ",recall_score(svm_pred, Test_Y))
+#print("SVM Precision Score -> ",precision_score(svm_pred, Test_Y))
+
+#Takes single Tweet as string
+def sci_sentiment(tweet):
+    df = pd.DataFrame([tweet],columns=['Tweet'])
+    df['Tweet'] = [entry.lower() for entry in df['Tweet']]
+    Tfidf_vect.fit(corpus['text_final'])
+    tweet_Tfidf = Tfidf_vect.transform((df['Tweet']))
+    svm_tweet_pred = clf.predict(tweet_Tfidf)
+    #print('SVM:', svm_tweet_pred)
+    pred_probs = clf.predict_proba(tweet_Tfidf)
+    return round(pred_probs[0][1],3)
+
+anti_tweet = sci_sentiment("I’m not getting the vaccine. COVID is not statistically a threat to my life and everyone spreads it, regardless if they are vaccinated or not. Tyranny is a bigger threat to my life than COVID.")
+pro_tweet = sci_sentiment("Shots are never fun, but the kids I met at Kimball Elementary knew how important the COVID-19 vaccines are to keep our families and communities safe. Check out @ItsMadeToSavefor more information about the vaccines, and make your appointment at http://vaccines.gov.")
+print("I’m not getting the vaccine. COVID is not statistically a threat to my life and everyone spreads it, regardless if they are vaccinated or not. Tyranny is a bigger threat to my life than COVID.")
+print("Anti-Science Tweet:",anti_tweet)
+print("Shots are never fun, but the kids I met at Kimball Elementary knew how important the COVID-19 vaccines are to keep our families and communities safe. Check out @ItsMadeToSavefor more information about the vaccines, and make your appointment at http://vaccines.gov.")
+print("Pro-Science Tweet:",pro_tweet)
